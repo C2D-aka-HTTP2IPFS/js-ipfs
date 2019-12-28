@@ -172,7 +172,10 @@ function withTimeoutOption (fn, optionsArgIndex) {
     const options = args[optionsArgIndex == null ? args.length - 1 : optionsArgIndex]
     if (!options || !options.timeout) return fn(...args)
 
-    const timeout = typeof value === 'string' ? parseDuration(options.timeout) : options.timeout
+    const timeout = typeof options.timeout === 'string'
+      ? parseDuration(options.timeout)
+      : options.timeout
+
     const controller = new TimeoutController(timeout)
 
     options.signal = anySignal([options.signal, controller.signal])

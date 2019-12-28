@@ -51,6 +51,7 @@ module.exports = ({
     }
 
     options.repo = options.repo || constructorOptions.repo
+    options.repoAutoMigrate = options.repoAutoMigrate || constructorOptions.repoAutoMigrate
 
     const repo = typeof options.repo === 'string' || options.repo == null
       ? createRepo({ path: options.repo, autoMigrate: options.repoAutoMigrate })
@@ -289,7 +290,7 @@ function applyProfiles (profiles, config) {
   return (profiles || []).reduce((config, name) => {
     const profile = require('./config').profiles[name]
     if (!profile) {
-      throw new Error(`No profile with name '${name}'`)
+      throw new Error(`Could not find profile with name '${name}'`)
     }
     log('applying profile %s', name)
     return profile.transform(config)

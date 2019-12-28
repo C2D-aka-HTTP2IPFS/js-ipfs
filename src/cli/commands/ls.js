@@ -36,22 +36,10 @@ module.exports = {
 
   handler ({ getIpfs, print, key, recursive, headers, cidBase, resolve }) {
     resolve((async () => {
-      const ipfs = await getIpfs()
-      let links = await ipfs.ls(key, { recursive })
-
-      links = links.map(file => Object.assign(file, { hash: cidToString(file.hash, { base: cidBase }) }))
-
-      if (headers) {
-        links = [{ hash: 'Hash', size: 'Size', name: 'Name' }].concat(links)
-      }
-
-      const multihashWidth = Math.max.apply(null, links.map((file) => file.hash.length))
-      const sizeWidth = Math.max.apply(null, links.map((file) => String(file.size).length))
-
       // replace multiple slashes
       key = key.replace(/\/(\/+)/g, '/')
 
-      // strip trailing flash
+      // strip trailing slash
       if (key.endsWith('/')) {
         key = key.replace(/(\/+)$/, '')
       }
@@ -62,18 +50,39 @@ module.exports = {
         pathParts = pathParts.slice(2)
       }
 
-      links.forEach(link => {
-        const fileName = link.type === 'dir' ? `${link.name || ''}/` : link.name
+      const ipfs = await getIpfs()
+      let first = true
+      let cidWidth = 0
+      let sizeWidth = 0
 
+      const printLink = (cid, size, name, depth = 0) => {
         // todo: fix this by resolving https://github.com/ipfs/js-ipfs-unixfs-exporter/issues/24
-        const padding = Math.max(link.depth - pathParts.length, 0)
-
+        const padding = Math.max(depth - pathParts.length, 0)
         print(
-          rightpad(link.hash, multihashWidth + 1) +
-          rightpad(link.size || '-', sizeWidth + 1) +
-          '  '.repeat(padding) + fileName
+          rightpad(cid, cidWidth + 1) +
+          rightpad(size || '-', sizeWidth + 1) +
+          '  '.repeat(padding) + name
         )
-      })
+      }
+
+      for await (const link of ipfs.ls(key, { recursive })) {
+        const cid = cidToString(link.cid, { base: cidBase })
+        const name = link.type === 'dir' ? `${link.name || ''}/` : link.name
+
+        cidWidth = Math.max(cidWidth, cid.length)
+        sizeWidth = Math.max(sizeWidth, String(link.size).length)
+
+        if (first) {
+          first = false
+          if (headers) {
+            cidWidth = Math.max(cidWidth, 'Hash'.length)
+            sizeWidth = Math.max(sizeWidth, 'Size'.length)
+            printLink('Hash', 'Size', 'Name')
+          }
+        }
+
+        printLink(cid, link.size, name, link.depth)
+      }
     })())
   }
 }

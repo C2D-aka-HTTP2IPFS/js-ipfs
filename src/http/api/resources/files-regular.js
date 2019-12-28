@@ -5,9 +5,7 @@ const debug = require('debug')
 const tar = require('tar-stream')
 const log = debug('ipfs:http-api:files')
 log.error = debug('ipfs:http-api:files:error')
-const pull = require('pull-stream')
-const pushable = require('pull-pushable')
-const toStream = require('pull-stream-to-stream')
+const toIterable = require('stream-to-it')
 const Joi = require('@hapi/joi')
 const Boom = require('@hapi/boom')
 const { PassThrough } = require('readable-stream')
@@ -17,6 +15,9 @@ const promisify = require('promisify-es6')
 const { cidToString } = require('../../../utils/cid')
 const { Format } = require('../../../core/components/refs')
 const pipe = require('it-pipe')
+const all = require('it-all')
+const concat = require('it-concat')
+const ndjson = require('iterable-ndjson')
 
 function numberFromQuery (query, key) {
   if (query && query[key] !== undefined) {
@@ -64,41 +65,34 @@ exports.cat = {
     const { ipfs } = request.server.app
     const { key, options } = request.pre.args
 
-    const stream = await new Promise((resolve, reject) => {
-      let pusher
+    // eslint-disable-next-line no-async-promise-executor
+    const stream = await new Promise(async (resolve, reject) => {
       let started = false
+      const stream = new PassThrough()
 
-      pull(
-        ipfs.catPullStream(key, options),
-        pull.drain(
-          chunk => {
-            if (!started) {
-              started = true
-              pusher = pushable()
-              resolve(toStream.source(pusher).pipe(new PassThrough()))
-            }
-            pusher.push(chunk)
-          },
-          err => {
-            if (err) {
-              log.error(err)
-
-              // We already started flowing, abort the stream
-              if (started) {
-                return pusher.end(err)
+      try {
+        await pipe(
+          ipfs.cat(key, options),
+          async function * (source) {
+            for await (const chunk of source) {
+              if (!started) {
+                started = true
+                resolve(stream)
               }
-
-              err.message = err.message === 'file does not exist'
-                ? err.message
-                : 'Failed to cat file: ' + err
-
-              return reject(err)
+              yield chunk
             }
-
-            pusher.end()
-          }
+          },
+          toIterable.sink(stream)
         )
-      )
+      } catch (err) {
+        log.error(err)
+
+        err.message = err.message === 'file does not exist'
+          ? err.message
+          : 'Failed to cat file: ' + err
+
+        reject(err)
+      }
     })
 
     return h.response(stream).header('X-Stream-Output', '1')
@@ -117,7 +111,7 @@ exports.get = {
 
     let filesArray
     try {
-      filesArray = await ipfs.get(key)
+      filesArray = await all(ipfs.get(key))
     } catch (err) {
       throw Boom.boomify(err, { message: 'Failed to get key' })
     }
@@ -125,16 +119,12 @@ exports.get = {
     pack.entry = promisify(pack.entry.bind(pack))
 
     Promise
-      .all(filesArray.map(file => {
-        const header = { name: file.path }
-
-        if (file.content) {
-          header.size = file.size
-          return pack.entry(header, file.content)
-        } else {
-          header.type = 'directory'
-          return pack.entry(header)
+      .all(filesArray.map(async file => {
+        if (!file.content) {
+          return pack.entry({ name: file.path, type: 'directory' })
         }
+        const content = await concat(file.content)
+        return pack.entry({ name: file.path, size: file.size }, content.slice())
       }))
       .then(() => pack.finalize())
       .catch(err => {
@@ -213,7 +203,8 @@ exports.add = {
         return ipfs.add(source, {
           cidVersion: request.query['cid-version'],
           rawLeaves: request.query['raw-leaves'],
-          progress: request.query.progress ? progressHandler : null,
+          // FIXME: can pass null when merged: https://github.com/ipfs/js-ipfs-unixfs-importer/pull/43
+          progress: request.query.progress ? progressHandler : () => {},
           onlyHash: request.query['only-hash'],
           hashAlg: request.query.hash,
           wrapWithDirectory: request.query['wrap-with-directory'],
@@ -284,25 +275,38 @@ exports.ls = {
     const recursive = request.query && request.query.recursive === 'true'
     const cidBase = request.query['cid-base']
 
-    let files
-    try {
-      files = await ipfs.ls(key, { recursive })
-    } catch (err) {
-      throw Boom.boomify(err, { message: 'Failed to list dir' })
-    }
+    // eslint-disable-next-line no-async-promise-executor
+    const stream = await new Promise(async (resolve, reject) => {
+      let started = false
+      const stream = new PassThrough()
 
-    return h.response({
-      Objects: [{
-        Hash: key,
-        Links: files.map((file) => ({
-          Name: file.name,
-          Hash: cidToString(file.hash, { base: cidBase }),
-          Size: file.size,
-          Type: toTypeCode(file.type),
-          Depth: file.depth
-        }))
-      }]
+      try {
+        await pipe(
+          ipfs.ls(key, { recursive }),
+          async function * (source) {
+            for await (const file of source) {
+              if (!started) {
+                started = true
+                resolve(stream)
+              }
+              yield {
+                Name: file.name,
+                Hash: cidToString(file.cid, { base: cidBase }),
+                Size: file.size,
+                Type: toTypeCode(file.type),
+                Depth: file.depth
+              }
+            }
+          },
+          ndjson.stringify,
+          toIterable.sink(stream)
+        )
+      } catch (err) {
+        reject(err)
+      }
     })
+
+    return h.response(stream).header('X-Stream-Output', '1')
   }
 }
 

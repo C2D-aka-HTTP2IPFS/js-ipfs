@@ -51,13 +51,8 @@ cli
       error.message = 'Incompatible repo version. Migration needed. Pass --migrate for automatic migration'
     }
 
-    if (error.message) {
-      print(error.message)
-      debug(error)
-    } else {
-      print('Unknown error, please re-run the command with DEBUG=ipfs:cli to see debug output')
-      debug(error)
-    }
+    print(error.message || 'Unknown error, please re-run the command with DEBUG=ipfs:cli to see debug output')
+    debug(error)
 
     process.exit(1)
   })
