@@ -261,7 +261,8 @@ exports.add = {
 exports.ls = {
   validate: {
     query: Joi.object().keys({
-      'cid-base': Joi.string().valid(...multibase.names)
+      'cid-base': Joi.string().valid(...multibase.names),
+      stream: Joi.boolean()
     }).unknown()
   },
 
@@ -275,6 +276,25 @@ exports.ls = {
     const recursive = request.query && request.query.recursive === 'true'
     const cidBase = request.query['cid-base']
 
+    const mapLink = link => ({
+      Name: link.name,
+      Hash: cidToString(link.cid, { base: cidBase }),
+      Size: link.size,
+      Type: toTypeCode(link.type),
+      Depth: link.depth
+    })
+
+    if (!request.query.stream) {
+      let links
+      try {
+        links = await all(ipfs.ls(key, { recursive }))
+      } catch (err) {
+        throw Boom.boomify(err, { message: 'Failed to list dir' })
+      }
+
+      return h.response({ Objects: [{ Hash: key, Links: links.map(mapLink) }] })
+    }
+
     // eslint-disable-next-line no-async-promise-executor
     const stream = await new Promise(async (resolve, reject) => {
       let started = false
@@ -284,18 +304,12 @@ exports.ls = {
         await pipe(
           ipfs.ls(key, { recursive }),
           async function * (source) {
-            for await (const file of source) {
+            for await (const link of source) {
               if (!started) {
                 started = true
                 resolve(stream)
               }
-              yield {
-                Name: file.name,
-                Hash: cidToString(file.cid, { base: cidBase }),
-                Size: file.size,
-                Type: toTypeCode(file.type),
-                Depth: file.depth
-              }
+              yield { Objects: [{ Hash: key, Links: [mapLink(link)] }] }
             }
           },
           ndjson.stringify,
