@@ -5,7 +5,7 @@ const sinon = require('sinon')
 const YargsPromise = require('yargs-promise')
 const clearModule = require('clear-module')
 
-describe.only('name', () => {
+describe('name', () => {
   let cli
   let cliUtils
   beforeEach(() => {

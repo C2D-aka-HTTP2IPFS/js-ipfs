@@ -1,7 +1,7 @@
 'use strict'
 
 const Big = require('bignumber.js')
-const human = require('human-to-milliseconds')
+const parseDuration = require('parse-duration')
 const errCode = require('err-code')
 
 function getBandwidthStats (libp2p, opts) {
@@ -43,9 +43,9 @@ module.exports = ({ libp2p }) => {
       return
     }
 
-    let interval
+    let interval = options.interval || 1000
     try {
-      interval = human(options.interval || '1s')
+      interval = typeof interval === 'string' ? parseDuration(interval) : interval
     } catch (err) {
       throw errCode(err, 'ERR_INVALID_POLL_INTERVAL')
     }

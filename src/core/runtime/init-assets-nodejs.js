@@ -2,7 +2,7 @@
 
 const path = require('path')
 const globSource = require('ipfs-utils/src/files/glob-source')
-const all = require('async-iterator-all')
+const all = require('it-all')
 
 // Add the default assets to the repo.
 module.exports = async function initAssets ({ add, print }) {
