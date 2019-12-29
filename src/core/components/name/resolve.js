@@ -12,7 +12,9 @@ log.error = debug('ipfs:name:resolve:error')
 const { OFFLINE_ERROR } = require('../../utils')
 
 const appendRemainder = async (result, remainder) => {
+  console.log('appendRemainder', remainder)
   result = await result
+  console.log(result)
 
   if (remainder.length) {
     return result + '/' + remainder.join('/')

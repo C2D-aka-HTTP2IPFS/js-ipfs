@@ -18,28 +18,13 @@ module.exports = ({
   const { datastore } = repo
   const libp2pOptions = getLibp2pOptions({ options, config, datastore, peerInfo })
 
-  let libp2p
-
   if (typeof options.libp2p === 'function') {
-    libp2p = options.libp2p({ libp2pOptions, options, config, datastore, peerInfo })
-  } else {
-    // Required inline to reduce startup time
-    const Libp2p = require('libp2p')
-    libp2p = new Libp2p(mergeOptions(libp2pOptions, get(options, 'libp2p', {})))
+    return options.libp2p({ libp2pOptions, options, config, datastore, peerInfo })
   }
 
-  libp2p.on('stop', () => {
-    // Clear our addresses so we can start clean
-    peerInfo.multiaddrs.clear()
-  })
-
-  libp2p.on('start', () => {
-    peerInfo.multiaddrs.forEach((ma) => {
-      print('Swarm listening on', ma.toString())
-    })
-  })
-
-  return libp2p
+  // Required inline to reduce startup time
+  const Libp2p = require('libp2p')
+  return new Libp2p(mergeOptions(libp2pOptions, get(options, 'libp2p', {})))
 }
 
 function getLibp2pOptions ({ options, config, datastore, peerInfo }) {

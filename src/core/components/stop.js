@@ -36,6 +36,9 @@ module.exports = ({
       repo.close()
     ])
 
+    // Clear our addresses so we can start clean
+    peerInfo.multiaddrs.clear()
+
     const api = createApi({
       apiManager,
       constructorOptions,

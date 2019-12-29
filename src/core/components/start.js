@@ -1,6 +1,7 @@
 'use strict'
 
 const Bitswap = require('ipfs-bitswap')
+const multiaddr = require('multiaddr')
 const IPNS = require('../ipns')
 const routingConfig = require('../ipns/routing/config')
 const defer = require('p-defer')
@@ -32,6 +33,18 @@ module.exports = ({
 
     const config = await repo.config.get()
 
+    if (config.Addresses && config.Addresses.Swarm) {
+      config.Addresses.Swarm.forEach(addr => {
+        let ma = multiaddr(addr)
+
+        if (ma.getPeerId()) {
+          ma = ma.encapsulate(`/p2p/${peerInfo.id.toB58String()}`)
+        }
+
+        peerInfo.multiaddrs.add(ma)
+      })
+    }
+
     const libp2p = Components.libp2p({
       options: constructorOptions,
       repo,
@@ -41,6 +54,8 @@ module.exports = ({
     })
 
     await libp2p.start()
+
+    peerInfo.multiaddrs.forEach(ma => print('Swarm listening on', ma.toString()))
 
     const ipnsRouting = routingConfig({
       _options: constructorOptions,

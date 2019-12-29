@@ -18,6 +18,7 @@ const pipe = require('it-pipe')
 const all = require('it-all')
 const concat = require('it-concat')
 const ndjson = require('iterable-ndjson')
+const { map } = require('streaming-iterables')
 
 function numberFromQuery (query, key) {
   if (query && query[key] !== undefined) {
@@ -73,15 +74,13 @@ exports.cat = {
       try {
         await pipe(
           ipfs.cat(key, options),
-          async function * (source) {
-            for await (const chunk of source) {
-              if (!started) {
-                started = true
-                resolve(stream)
-              }
-              yield chunk
+          map(chunk => {
+            if (!started) {
+              started = true
+              resolve(stream)
             }
-          },
+            return chunk
+          }),
           toIterable.sink(stream)
         )
       } catch (err) {
@@ -303,15 +302,13 @@ exports.ls = {
       try {
         await pipe(
           ipfs.ls(key, { recursive }),
-          async function * (source) {
-            for await (const link of source) {
-              if (!started) {
-                started = true
-                resolve(stream)
-              }
-              yield { Objects: [{ Hash: key, Links: [mapLink(link)] }] }
+          map(link => {
+            if (!started) {
+              started = true
+              resolve(stream)
             }
-          },
+            return { Objects: [{ Hash: key, Links: [mapLink(link)] }] }
+          }),
           ndjson.stringify,
           toIterable.sink(stream)
         )

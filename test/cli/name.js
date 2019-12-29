@@ -5,7 +5,7 @@ const sinon = require('sinon')
 const YargsPromise = require('yargs-promise')
 const clearModule = require('clear-module')
 
-describe('name', () => {
+describe.only('name', () => {
   let cli
   let cliUtils
   beforeEach(() => {
@@ -25,7 +25,7 @@ describe('name', () => {
 
     sinon
       .stub(cliUtils, 'getIPFS')
-      .callsArgWith(1, null, { name: { resolve: resolveFake } })
+      .returns(Promise.resolve({ name: { resolve: resolveFake } }))
 
     // TODO: the lines below shouldn't be necessary, cli needs refactor to simplify testability
     // Force the next require to not use require cache

@@ -12,7 +12,6 @@ const mortice = require('mortice')
 const { DAGNode } = require('ipld-dag-pb')
 const UnixFs = require('ipfs-unixfs')
 const multicodec = require('multicodec')
-const multiaddr = require('multiaddr')
 const {
   AlreadyInitializingError,
   AlreadyInitializedError,
@@ -75,25 +74,12 @@ module.exports = ({
       throw new NotEnabledError('new repo initialization is not enabled')
     }
 
-    const { peerId, config, keychain } = isInitialized
+    const { peerId, keychain } = isInitialized
       ? await initExistingRepo(repo, options)
       : await initNewRepo(repo, { ...options, print })
 
     log('peer created')
     const peerInfo = new PeerInfo(peerId)
-
-    if (config.Addresses && config.Addresses.Swarm) {
-      config.Addresses.Swarm.forEach(addr => {
-        let ma = multiaddr(addr)
-
-        if (ma.getPeerId()) {
-          ma = ma.encapsulate(`/p2p/${peerInfo.id.toB58String()}`)
-        }
-
-        peerInfo.multiaddrs.add(ma)
-      })
-    }
-
     const blockService = new BlockService(repo)
     const ipld = new Ipld(getDefaultIpldOptions(blockService, constructorOptions.ipld, log))
 
@@ -223,7 +209,7 @@ async function initNewRepo (repo, { privateKey, emptyRepo, bits, profiles, confi
     await keychain.importPeer('self', { privKey: privateKey })
   }
 
-  return { peerId, keychain, config }
+  return { peerId, keychain }
 }
 
 async function initExistingRepo (repo, { config: newConfig, profiles, pass }) {
@@ -259,7 +245,7 @@ async function initExistingRepo (repo, { config: newConfig, profiles, pass }) {
     }
   }
 
-  return { peerId, keychain, config }
+  return { peerId, keychain }
 }
 
 function createPeerId ({ privateKey, bits, print }) {
