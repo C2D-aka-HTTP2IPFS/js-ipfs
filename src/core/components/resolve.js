@@ -5,40 +5,23 @@ const CID = require('cids')
 const { cidToString } = require('../../utils/cid')
 
 /**
- * @typedef { import("../index") } IPFS
- */
-
-/**
  * @typedef {Object} ResolveOptions
  * @prop {string} cidBase - Multibase codec name the CID in the resolved path will be encoded with
  * @prop {boolean} [recursive=true] - Resolve until the result is an IPFS name
  *
  */
 
-/** @typedef {(err: Error, path: string) => void} ResolveCallback */
-
-/**
- * @callback ResolveWrapper - This wrapper adds support for callbacks and promises
- * @param {string} name - Path to resolve
- * @param {ResolveOptions} opts - Options for resolve
- * @param {ResolveCallback} [cb] - Optional callback function
- * @returns {Promise<string> | void} - When callback is provided nothing is returned
- */
+/** @typedef {(path: string, options?: ResolveOptions) => Promise<string>} Resolve */
 
 /**
  * IPFS Resolve factory
  *
- * @param {{ ipld: IPLD, name?: NameApi }}
- * @returns {ResolveWrapper}
+ * @param {Object} config
+ * @param {IPLD} config.ipld - An instance of IPLD
+ * @param {NameApi} [config.name] - An IPFS core interface name API
+ * @returns {Resolve}
  */
 module.exports = ({ ipld, name }) => {
-  /**
-   * IPFS Resolve - Resolve the value of names to IPFS
-   *
-   * @param {String} path
-   * @param {ResolveOptions} [opts={}]
-   * @returns {Promise<string>}
-   */
   return async function resolve (path, opts) {
     opts = opts || {}
 
